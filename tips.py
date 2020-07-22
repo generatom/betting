@@ -1,39 +1,68 @@
 #!/usr/bin/env python3
 import requests
-import datetime
+import datetime as dt
 import pandas as pd
 from bs4 import BeautifulSoup
 
 
 class Tips():
-    def __init__(self, start_date, end_date=None):
+    def __init__(self, start_date=None, end_date=None):
         self.base_url = 'https://tipsbet.co.uk/free-betting-tips-'
         self.pickle_path = '/home/jono/projects/betting/df.pkl'
-        self.start_date = start_date
-        self.end_date = end_date if end_date else datetime.date.today()
-        self.df = self._init_df()
+        self.start_date = start_date if start_date else dt.datetime.now()
+        self.end_date = end_date if end_date else dt.datetime.now()
+        self.df = pd.DataFrame()
+        self.init_df()
         self.store_df()
 
-    def _init_df(self, path=None):
-        if path:
-            df = pd.read_pickle(path)
+    def init_df(self):
+        if self._check_pickle():
+            print('Pickle checked and passed')
         else:
-            df = self._get_web_data()
+            print('Getting data from web')
+            self.df = self._get_web_data()
+            print(self.df)
 
-        return df
+    def _check_pickle(self, path=None, sdate=None, edate=None):
+        if path is None:
+            path = self.pickle_path
+        if sdate is None:
+            sdate = self.start_date
+        if edate is None:
+            edate = self.end_date
 
-    def _get_web_data(self):
+        df = pd.read_pickle(path)
+
+        if df.empty:
+            print('No data in pickle')
+            return False
+        elif sdate.date() in df.Time.dt.date.values:
+            print(f'Pickle df:\n{df}\n')
+            self.df = df[df.Time > sdate]
+            print(f'Dataframe for dates > {sdate}:\n{self.df}\n')
+        else:
+            return False
+
+        return True
+
+    def _get_web_data(self, sdate=None, edate=None):
+        if sdate is None:
+            sdate = self.start_date
+        if edate is None:
+            edate = self.end_date
+
         try:
             df = pd.DataFrame()
-            current_date = self.start_date
+            current_date = sdate
             web_data = Webpage(self.base_url, current_date)
 
-            while web_data.tip_df is not None and (
-                    current_date < self.end_date):
+            while web_data.tip_df is not None and \
+                    current_date.date() < edate.date():
                 df = df.append(web_data.tip_df, ignore_index=True)
-                current_date += datetime.timedelta(days=1)
+                current_date += dt.timedelta(days=1)
                 web_data = Webpage(self.base_url, current_date)
-        except KeyboardInterrupt:
+        except Exception as e:
+            print(e)
             print(df)
         finally:
             return df
@@ -49,7 +78,10 @@ class Webpage():
         self.url = base_url + tip_date.strftime('%d-%m-%Y')
         self.tip_date = tip_date
         self.tip_df = self.get_dataframe(self.url)
-        self.tip_df.insert(0, 'Date', tip_date)
+        self.tip_df['Date'] = str(self.tip_date)
+        self.tip_df['Time'] = pd.to_datetime(self.tip_df.Date + ' ' +
+                                             self.tip_df.Time)
+        self.tip_df.drop(columns=['Date'], inplace=True)
 
     def get_dataframe(self, url):
         page = requests.get(self.url)
@@ -95,5 +127,5 @@ class Webpage():
 
 
 if __name__ == '__main__':
-    start_date = datetime.date(2020, 7, 21)
+    start_date = dt.datetime(2020, 7, 15)
     s = Tips(start_date)
