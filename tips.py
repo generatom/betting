@@ -1,22 +1,55 @@
 #!/usr/bin/env python3
-import shelve
 import requests
-from datetime import date
+import datetime
 import pandas as pd
 from bs4 import BeautifulSoup
 
 
 class Tips():
-    def __init__(self, start_date):
-        pass
+    def __init__(self, start_date, end_date=None):
+        self.base_url = 'https://tipsbet.co.uk/free-betting-tips-'
+        self.pickle_path = '/home/jono/projects/betting/df.pkl'
+        self.start_date = start_date
+        self.end_date = end_date if end_date else datetime.date.today()
+        self.df = self._init_df()
+        self.store_df()
+
+    def _init_df(self, path=None):
+        if path:
+            df = pd.read_pickle(path)
+        else:
+            df = self._get_web_data()
+
+        return df
+
+    def _get_web_data(self):
+        try:
+            df = pd.DataFrame()
+            current_date = self.start_date
+            web_data = Webpage(self.base_url, current_date)
+
+            while web_data.tip_df is not None and (
+                    current_date < self.end_date):
+                df = df.append(web_data.tip_df, ignore_index=True)
+                current_date += datetime.timedelta(days=1)
+                web_data = Webpage(self.base_url, current_date)
+        except KeyboardInterrupt:
+            print(df)
+        finally:
+            return df
+
+    def store_df(self, path=None):
+        if not path:
+            path = self.pickle_path
+        self.df.to_pickle(path)
 
 
 class Webpage():
-    def __init__(self, base_url, tip_date, tips_data):
+    def __init__(self, base_url, tip_date):
         self.url = base_url + tip_date.strftime('%d-%m-%Y')
         self.tip_date = tip_date
         self.tip_df = self.get_dataframe(self.url)
-        print(self.tip_df)
+        self.tip_df.insert(0, 'Date', tip_date)
 
     def get_dataframe(self, url):
         page = requests.get(self.url)
@@ -27,7 +60,7 @@ class Webpage():
             df[['Results', 'Status']] = df.Results.str.split('|', expand=True)
             return df
         except ValueError as e:
-            print(e)
+            print(url + ': ' + str(e))
             return None
 
     def _interpret_html(self, html):
@@ -62,7 +95,5 @@ class Webpage():
 
 
 if __name__ == '__main__':
-    base_url = 'https://tipsbet.co.uk/free-betting-tips-'
-    start_date = date(2020, 7, 21) # date.today()
-    tips_data = Tips(start_date)
-    s = Webpage(base_url, start_date, tips_data)
+    start_date = datetime.date(2020, 7, 21)
+    s = Tips(start_date)
