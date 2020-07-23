@@ -3,6 +3,7 @@ import requests
 import datetime as dt
 import pandas as pd
 from bs4 import BeautifulSoup
+from pprint import pprint
 
 
 class Tips():
@@ -17,11 +18,10 @@ class Tips():
 
     def init_df(self):
         if self._check_pickle():
-            print('Pickle checked and passed')
+            print('Pickle checked and loaded.')
         else:
-            print('Getting data from web')
+            print('Getting data from web...')
             self.df = self._get_web_data()
-            print(self.df)
 
     def _check_pickle(self, path=None, sdate=None, edate=None):
         if path is None:
@@ -31,14 +31,37 @@ class Tips():
         if edate is None:
             edate = self.end_date
 
-        df = pd.read_pickle(path)
+        try:
+            df = pd.read_pickle(path)
+        except OSError:
+            return False
 
+        self.full_dataset = pd.DataFrame(df)
+
+        # If no pickle data, get from web
         if df.empty:
             print('No data in pickle')
             return False
-        elif sdate.date() in df.Time.dt.date.values:
+
+        # If start_date already in pickle, restrict df to dates greater than
+        # start_date. Otherwise, get from web
+        if sdate.date() in df.Time.dt.date.values:
+            print(f'Restricting dates to date > {sdate}')
             self.df = df[df.Time > sdate]
         else:
+            print(f'{sdate.date()} not in:')
+            pprint(df.Time.dt.date.values)
+            end_date = df.Time.min()
+            self.df.append(self._get_web_date(sdate, end_date),
+                           ignore_index=True, sort=True)
+
+        # If end_date already in pickle, restrict df to dates less than edate.
+        # Else get from web
+        if edate.date() in df.Time.dt.date.values:
+            print(f'Restricting dates to date < {edate+dt.timedelta(days=1)}')
+            self.df = self.df[self.df.Time < edate + dt.timedelta(days=1)]
+        else:
+            print('End date not in df, getting from web')
             return False
 
         return True
@@ -55,7 +78,7 @@ class Tips():
             web_data = Webpage(self.base_url, current_date)
 
             while web_data.tip_df is not None and \
-                    current_date.date() < edate.date():
+                    current_date.date() <= edate.date():
                 df = df.append(web_data.tip_df, ignore_index=True)
                 current_date += dt.timedelta(days=1)
                 web_data = Webpage(self.base_url, current_date)
