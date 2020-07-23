@@ -3,11 +3,11 @@ import requests
 import datetime as dt
 import pandas as pd
 from bs4 import BeautifulSoup
-from pprint import pprint
 
 
 class Tips():
-    def __init__(self, start_date=None, end_date=None):
+    def __init__(self, start_date=None, end_date=None, verbosity=0):
+        self.verbosity = verbosity
         self.base_url = 'https://tipsbet.co.uk/free-betting-tips-'
         self.pickle_path = '/home/jono/projects/betting/df.pkl'
         self.start_date = start_date if start_date else dt.datetime.now()
@@ -18,9 +18,11 @@ class Tips():
 
     def init_df(self):
         if self._check_pickle():
-            print('Pickle checked and loaded.')
+            if self.verbosity:
+                print('Pickle checked and loaded.')
         else:
-            print('Getting data from web...')
+            if self.verbosity:
+                print('Getting data from web...')
             self.df = self._get_web_data()
             self.full_dataset = self.df.copy()
 
@@ -47,26 +49,27 @@ class Tips():
         # If start_date already in pickle, restrict df to dates greater than
         # start_date. Otherwise, get from web
         if sdate.date() in df.Time.dt.date.values:
-            print(f'Restricting dates to date >= {sdate.date()}')
-            print(f'self.df:\n{self.df}\n\ndf:\n{df}\n\n')
+            if self.verbosity:
+                print(f'Restricting dates to date >= {sdate.date()}')
             self.df = df[df.Time >= sdate].copy()
-            print(f'self.df:\n{self.df}\n\ndf:\n{df}\n\n')
         else:
             end_date = df.Time.min() - dt.timedelta(days=1)
-            print(f'Getting data for {sdate.date()} - {end_date.date()}')
+            if self.verbosity:
+                print(f'Getting data for {sdate.date()} - {end_date.date()}')
             new_data = self._get_web_data(sdate, end_date)
             self.df = self.df.append(new_data, ignore_index=True)
 
         # If end_date already in pickle, restrict df to dates less than edate.
         # Else get from web
         if edate.date() in df.Time.dt.date.values:
-            print(f'Restricting dates to date < {edate.date()}')
-            print(f'self.df:\n{self.df}\n\ndf:\n{df}\n\n')
-            self.df = self.df[self.df.Time < edate + dt.timedelta(days=1)]
-            print(f'self.df:\n{self.df}\n\ndf:\n{df}\n\n')
+            if self.verbosity:
+                print(f'Restricting dates to date < {edate.date()}')
+            self.df = self.df.append(df[df.Time < edate +
+                                     dt.timedelta(days=1)]).drop_duplicates()
         else:
             start_date = df.Time.max() + dt.timedelta(days=1)
-            print(f'Getting data for {start_date.date()} - {edate.date()}')
+            if self.verbosity:
+                print(f'Getting data for {start_date.date()} - {edate.date()}')
             new_data = self._get_web_data(start_date, edate)
             self.df = self.df.append(new_data, ignore_index=True)
 
@@ -91,10 +94,12 @@ class Tips():
 
             while current_date.date() <= edate.date():
                 if web_data.tip_df is not None:
-                    print(f'Adding {current_date.date()}')
+                    if self.verbosity > 1:
+                        print(f'Adding {current_date.date()}')
                     df = df.append(web_data.tip_df, ignore_index=True)
                 else:
-                    print(f'No tips for {current_date.date()}')
+                    if self.verbosity > 1:
+                        print(f'No tips for {current_date.date()}')
 
                 current_date += dt.timedelta(days=1)
                 web_data = Webpage(self.base_url, current_date)
@@ -165,7 +170,7 @@ class Webpage():
 
 
 if __name__ == '__main__':
-    start_date = dt.datetime(2020, 4, 15)
+    start_date = dt.datetime(2020, 4, 10)
     end_date = start_date + dt.timedelta(days=10)
     s = Tips(start_date, end_date)
     print(f'Restricted:\n{s.df}\nMin: {s.df.Time.min()}\nMax: ' +
