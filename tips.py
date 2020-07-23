@@ -37,9 +37,7 @@ class Tips():
             print('No data in pickle')
             return False
         elif sdate.date() in df.Time.dt.date.values:
-            print(f'Pickle df:\n{df}\n')
             self.df = df[df.Time > sdate]
-            print(f'Dataframe for dates > {sdate}:\n{self.df}\n')
         else:
             return False
 
@@ -127,5 +125,6 @@ class Webpage():
 
 
 if __name__ == '__main__':
-    start_date = dt.datetime(2020, 7, 15)
+    start_date = dt.datetime(2020, 6, 22)
     s = Tips(start_date)
+    print(s.df.Status.value_counts())
