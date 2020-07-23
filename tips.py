@@ -48,7 +48,9 @@ class Tips():
         # start_date. Otherwise, get from web
         if sdate.date() in df.Time.dt.date.values:
             print(f'Restricting dates to date >= {sdate.date()}')
+            print(f'self.df:\n{self.df}\n\ndf:\n{df}\n\n')
             self.df = df[df.Time >= sdate].copy()
+            print(f'self.df:\n{self.df}\n\ndf:\n{df}\n\n')
         else:
             end_date = df.Time.min() - dt.timedelta(days=1)
             print(f'Getting data for {sdate.date()} - {end_date.date()}')
@@ -59,15 +61,18 @@ class Tips():
         # Else get from web
         if edate.date() in df.Time.dt.date.values:
             print(f'Restricting dates to date < {edate.date()}')
-            self.df = self.df.append(df[df.Time < edate +
-                                        dt.timedelta(days=1)].copy())
+            print(f'self.df:\n{self.df}\n\ndf:\n{df}\n\n')
+            self.df = self.df[self.df.Time < edate + dt.timedelta(days=1)]
+            print(f'self.df:\n{self.df}\n\ndf:\n{df}\n\n')
         else:
             start_date = df.Time.max() + dt.timedelta(days=1)
             print(f'Getting data for {start_date.date()} - {edate.date()}')
             new_data = self._get_web_data(start_date, edate)
             self.df = self.df.append(new_data, ignore_index=True)
 
-        self.full_dataset = self.full_dataset.merge(self.df, how='outer')
+        self.full_dataset = self.full_dataset.append(self.df,
+                                                     ignore_index=False)
+        self.full_dataset.drop_duplicates(ignore_index=True, inplace=True)
 
         return True
 
