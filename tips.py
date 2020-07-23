@@ -22,6 +22,7 @@ class Tips():
         else:
             print('Getting data from web...')
             self.df = self._get_web_data()
+            self.full_dataset = self.df.copy()
 
     def _check_pickle(self, path=None, sdate=None, edate=None):
         if path is None:
@@ -32,11 +33,11 @@ class Tips():
             edate = self.end_date
 
         try:
-            df = pd.read_pickle(path)
+            self.full_dataset = pd.read_pickle(path)
         except OSError:
             return False
 
-        self.full_dataset = pd.DataFrame(df)
+        df = self.full_dataset
 
         # If no pickle data, get from web
         if df.empty:
@@ -46,23 +47,27 @@ class Tips():
         # If start_date already in pickle, restrict df to dates greater than
         # start_date. Otherwise, get from web
         if sdate.date() in df.Time.dt.date.values:
-            print(f'Restricting dates to date > {sdate}')
-            self.df = df[df.Time > sdate]
+            print(f'Restricting dates to date >= {sdate.date()}')
+            self.df = df[df.Time >= sdate].copy()
         else:
-            print(f'{sdate.date()} not in:')
-            pprint(df.Time.dt.date.values)
-            end_date = df.Time.min()
-            self.df.append(self._get_web_date(sdate, end_date),
-                           ignore_index=True, sort=True)
+            end_date = df.Time.min() - dt.timedelta(days=1)
+            print(f'Getting data for {sdate.date()} - {end_date.date()}')
+            new_data = self._get_web_data(sdate, end_date)
+            self.df = self.df.append(new_data, ignore_index=True)
 
         # If end_date already in pickle, restrict df to dates less than edate.
         # Else get from web
         if edate.date() in df.Time.dt.date.values:
-            print(f'Restricting dates to date < {edate+dt.timedelta(days=1)}')
-            self.df = self.df[self.df.Time < edate + dt.timedelta(days=1)]
+            print(f'Restricting dates to date < {edate.date()}')
+            self.df = self.df.append(df[df.Time < edate +
+                                        dt.timedelta(days=1)].copy())
         else:
-            print('End date not in df, getting from web')
-            return False
+            start_date = df.Time.max() + dt.timedelta(days=1)
+            print(f'Getting data for {start_date.date()} - {edate.date()}')
+            new_data = self._get_web_data(start_date, edate)
+            self.df = self.df.append(new_data, ignore_index=True)
+
+        self.full_dataset = self.full_dataset.merge(self.df, how='outer')
 
         return True
 
@@ -71,17 +76,24 @@ class Tips():
             sdate = self.start_date
         if edate is None:
             edate = self.end_date
+        if edate.date() > dt.date.today():
+            edate = dt.datetime.now()
 
         try:
             df = pd.DataFrame()
             current_date = sdate
             web_data = Webpage(self.base_url, current_date)
 
-            while web_data.tip_df is not None and \
-                    current_date.date() <= edate.date():
-                df = df.append(web_data.tip_df, ignore_index=True)
+            while current_date.date() <= edate.date():
+                if web_data.tip_df is not None:
+                    print(f'Adding {current_date.date()}')
+                    df = df.append(web_data.tip_df, ignore_index=True)
+                else:
+                    print(f'No tips for {current_date.date()}')
+
                 current_date += dt.timedelta(days=1)
                 web_data = Webpage(self.base_url, current_date)
+
         except Exception as e:
             print(e)
             print(df)
@@ -91,7 +103,7 @@ class Tips():
     def store_df(self, path=None):
         if not path:
             path = self.pickle_path
-        self.df.to_pickle(path)
+        self.full_dataset.to_pickle(path)
 
 
 class Webpage():
@@ -99,10 +111,11 @@ class Webpage():
         self.url = base_url + tip_date.strftime('%d-%m-%Y')
         self.tip_date = tip_date
         self.tip_df = self.get_dataframe(self.url)
-        self.tip_df['Date'] = str(self.tip_date)
-        self.tip_df['Time'] = pd.to_datetime(self.tip_df.Date + ' ' +
-                                             self.tip_df.Time)
-        self.tip_df.drop(columns=['Date'], inplace=True)
+        if self.tip_df is not None:
+            self.tip_df['Date'] = str(self.tip_date)
+            self.tip_df['Time'] = pd.to_datetime(self.tip_df.Date + ' ' +
+                                                 self.tip_df.Time)
+            self.tip_df.drop(columns=['Date'], inplace=True)
 
     def get_dataframe(self, url):
         page = requests.get(self.url)
@@ -112,8 +125,7 @@ class Webpage():
             df.drop(columns=['Flag'], inplace=True)
             df[['Results', 'Status']] = df.Results.str.split('|', expand=True)
             return df
-        except ValueError as e:
-            print(url + ': ' + str(e))
+        except ValueError:
             return None
 
     def _interpret_html(self, html):
@@ -148,6 +160,10 @@ class Webpage():
 
 
 if __name__ == '__main__':
-    start_date = dt.datetime(2020, 6, 22)
-    s = Tips(start_date)
-    print(s.df.Status.value_counts())
+    start_date = dt.datetime(2020, 4, 15)
+    end_date = start_date + dt.timedelta(days=10)
+    s = Tips(start_date, end_date)
+    print(f'Restricted:\n{s.df}\nMin: {s.df.Time.min()}\nMax: ' +
+          f'{s.df.Time.max()}')
+    print(f'Full:\n{s.full_dataset}\nMin: {s.full_dataset.Time.min()}\nMax: ' +
+          f'{s.full_dataset.Time.max()}')
