@@ -2,6 +2,8 @@
 import requests
 import datetime as dt
 import pandas as pd
+import numpy as np
+from matplotlib import pyplot as plt
 from bs4 import BeautifulSoup
 
 
@@ -114,6 +116,34 @@ class Tips():
         if not path:
             path = self.pickle_path
         self.full_dataset.to_pickle(path)
+
+    def plot_status(self, by='Sport', relative=True, labels=True):
+        summary = self.df[[by, 'Status']]
+        order = ['W', 'L', '?']
+
+        sm = summary.groupby([by, 'Status'], as_index=False).size().unstack().fillna(0)
+        if relative:
+            sm['Total'] = sm.sum(axis=1)
+            sm = sm.drop('Total', axis=1).div(sm.Total, axis=0) * 100
+            f_string = '{:.2f}%'
+        else:
+            f_string = '{:.0f}'
+
+        sm.columns = pd.CategoricalIndex(np.vectorize(str.strip)(sm.columns.values), ordered=True)
+        sm.columns = sm.columns.reorder_categories(new_categories=order)
+        sm = sm.sort_index(axis=1)
+        # sm['Total'] = sm['W'] + sm['L'] + sm['?']
+
+        ax = sm.plot(kind='bar', stacked=True, figsize=(14, 10))
+
+        if labels:
+            for p in ax.patches:
+                width, height = p.get_width(), p.get_height()
+                x, y = p.get_xy()
+                ax.text(x + width / 2.0, y + height / 2.0, f_string.format(height), horizontalalignment='center',
+                       verticalalignment='center')
+
+        plt.show()
 
 
 class Webpage():
