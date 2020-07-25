@@ -121,7 +121,8 @@ class Tips():
         summary = self.df[[by, 'Status']]
         order = ['W', 'L', '?']
 
-        sm = summary.groupby([by, 'Status'], as_index=False).size().unstack().fillna(0)
+        sm = summary.groupby([by, 'Status'], as_index=False).size()
+        sm = sm.unstack().fillna(0)
         if relative:
             sm['Total'] = sm.sum(axis=1)
             sm = sm.drop('Total', axis=1).div(sm.Total, axis=0) * 100
@@ -129,7 +130,9 @@ class Tips():
         else:
             f_string = '{:.0f}'
 
-        sm.columns = pd.CategoricalIndex(np.vectorize(str.strip)(sm.columns.values), ordered=True)
+        strip = np.vectorize(str.strip)
+        sm.columns = pd.CategoricalIndex(strip(sm.columns.values),
+                                         ordered=True)
         sm.columns = sm.columns.reorder_categories(new_categories=order)
         sm = sm.sort_index(axis=1)
         # sm['Total'] = sm['W'] + sm['L'] + sm['?']
@@ -140,8 +143,9 @@ class Tips():
             for p in ax.patches:
                 width, height = p.get_width(), p.get_height()
                 x, y = p.get_xy()
-                ax.text(x + width / 2.0, y + height / 2.0, f_string.format(height), horizontalalignment='center',
-                       verticalalignment='center')
+                ax.text(x + width / 2.0, y + height / 2.0,
+                        f_string.format(height), horizontalalignment='center',
+                        verticalalignment='center')
 
         plt.show()
 
