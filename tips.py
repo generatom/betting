@@ -75,11 +75,19 @@ class Tips():
             new_data = self._get_web_data(start_date, edate)
             self.df = self.df.append(new_data, ignore_index=True)
 
-        self.full_dataset = self.full_dataset.append(self.df,
-                                                     ignore_index=False)
-        self.full_dataset.drop_duplicates(ignore_index=True, inplace=True)
+        self._update_dataset(self.df)
+        self._append_to_full()
 
         return True
+
+    def _update_dataset(self, df):
+        df['Return'] = np.where(df.Status == 'W', df.Odds, 0)
+        df['Profit'] = df.Return - 1
+
+    def _append_to_full(self):
+        df = self.full_dataset
+        df = df.append(self.df, ignore_index=False)
+        df.drop_duplicates(ignore_index=True, inplace=True)
 
     def _get_web_data(self, sdate=None, edate=None):
         if sdate is None:
@@ -112,10 +120,13 @@ class Tips():
         finally:
             return df
 
-    def store_df(self, path=None):
+    def store_df(self, df=None, path=None):
         if not path:
             path = self.pickle_path
-        self.full_dataset.to_pickle(path)
+        if df is None:
+            df = self.full_dataset
+
+        df.to_pickle(path)
 
     def plot_status(self, by='Sport', relative=True, labels=True):
         summary = self.df[[by, 'Status']]
@@ -196,7 +207,7 @@ class Webpage():
 
         for res in results:
             s = [score for score in res.strings][0]
-            s_res = s + ' | '
+            s_res = s + '|'
             s_res += stats[res.select('span')[-1]['style']] if s != '?' else s
             s.replace_with(s_res)
 
