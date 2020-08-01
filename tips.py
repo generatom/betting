@@ -148,7 +148,8 @@ class Tips():
         sm = sm.sort_index(axis=1)
         # sm['Total'] = sm['W'] + sm['L'] + sm['?']
 
-        ax = sm.plot(kind='bar', stacked=True, figsize=(14, 10))
+        ax = sm.plot(kind='bar', stacked=True, figsize=(14, 10),
+                     legend='reverse')
 
         if labels:
             for p in ax.patches:
