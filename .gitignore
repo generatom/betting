@@ -1,1 +1,8 @@
 *.html
+*.backup
+*.old
+*ipynb*
+*.png
+*.jpg
+*.jpeg
+__pycache__
