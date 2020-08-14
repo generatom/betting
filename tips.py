@@ -5,13 +5,14 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 from bs4 import BeautifulSoup
+import os
 
 
 class Tips():
     def __init__(self, start_date=None, end_date=None, verbosity=0):
         self.verbosity = verbosity
         self.base_url = 'https://tipsbet.co.uk/free-betting-tips-'
-        self.pickle_path = '/home/jono/projects/betting/df.pkl'
+        self.pickle_path = os.path.join(os.getcwd(), 'df.pkl')
         self.start_date = start_date if start_date else dt.datetime.now()
         self.end_date = end_date if end_date else dt.datetime.now()
         self.df = pd.DataFrame()
@@ -125,8 +126,12 @@ class Tips():
             path = self.pickle_path
         if df is None:
             df = self.full_dataset
-
-        df.to_pickle(path)
+        try:
+            df.to_pickle(path)
+        except OSError:
+            print('Could not save DataFrame to {}.'.format(path))
+            new_path = input('Please input new path: ')
+            self.store_df(df, path=new_path)
 
     def plot_status(self, by='Sport', relative=True, labels=True):
         summary = self.df[[by, 'Status']]
